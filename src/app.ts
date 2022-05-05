@@ -4,6 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import swaggerJSDoc, { OAS3Options } from "swagger-jsdoc";
 import { router as dfpwmRouter } from "./routes/dfpwm";
 import { router as youtubeRouter } from "./routes/youtube";
+import Ffmpeg from "fluent-ffmpeg";
 
 export const app = express();
 // Middleware
@@ -43,3 +44,7 @@ const options: OAS3Options = {
 const specs = swaggerJSDoc(options);
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs, { explorer: true }));
 app.get("/", (_, response) => response.redirect("/docs"));
+
+// Bootstrap fluent-ffmpeg
+const ffmpegPath = process.env.FFMPEG_PATH;
+if (ffmpegPath !== undefined) Ffmpeg.setFfmpegPath(ffmpegPath);
