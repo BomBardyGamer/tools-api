@@ -106,13 +106,19 @@ router.post("/decode", (request, response) => {
 });
 
 router.get("/download/youtube", (request, response) => {
-    const id = request.query.id as string;
+    const id = request.query.id;
     const quality = request.query.quality as string || "highest";
-    if (quality !== "lowest" && quality !== "highest") {
+    if (typeof id !== "string" || (quality !== "lowest" && quality !== "highest")) {
         response.sendStatus(400);
         return;
     }
-    const result = download(id, "audioonly", quality);
+    const result = download(id, "audioonly", quality)
+        .on("error", (error) => {
+            if (error.message === "Video unavailable") {
+                response.sendStatus(404);
+                return;
+            }
+        });
     Ffmpeg(result)
         .format("u8")
         .audioCodec("dfpwm")

@@ -36,7 +36,7 @@
  *               type: string
  *               format: binary
  *       400:
- *         description: "The \"quality\" parameter was not \"lowest\" or \"highest\""
+ *         description: "The \"id\" parameter was not provided or the \"quality\" parameter was not \"lowest\" or \"highest\""
  *       404:
  *         description: "No YouTube video with the given \"id\" could be found"
  * /tools/youtube/download/video:
@@ -75,7 +75,7 @@
  *               type: string
  *               format: binary
  *       400:
- *         description: "The \"quality\" parameter was not \"lowest\" or \"highest\""
+ *         description: "The \"id\" parameter was not provided or the \"quality\" parameter was not \"lowest\" or \"highest\""
  *       404:
  *         description: "No YouTube video with the given \"id\" could be found"
  * /tools/youtube/download/audio:
@@ -114,7 +114,7 @@
  *               type: string
  *               format: binary
  *       400:
- *         description: "The \"quality\" parameter was not \"lowest\" or \"highest\""
+ *         description: "The \"id\" parameter was not provided or the \"quality\" parameter was not \"lowest\" or \"highest\""
  *       404:
  *         description: "No YouTube video with the given \"id\" could be found"
  * /tools/youtube/extract-id:
@@ -152,44 +152,26 @@
  *                 summary: "\"Five Hours\" ID information"
  *                 description: "The original URL and extracted YouTube video ID for the video \"Five Hours\" by channel \"Deorrotv\""
  *                 value: {"url": "https://www.youtube.com/watch?v=ptdgQMSZKVg", "id": "ptdgQMSZKVg"}
- *       500:
- *         description: The URL could not be converted to a YouTube video ID
+ *       400:
+ *         description: The URL given is not a valid YouTube URL
  */
 
-import { Router } from "express";
+import { Request, Response, Router } from "express";
 import { Readable } from "stream";
 import ytdl, { Filter } from "ytdl-core";
 
 export const router = Router();
 router.get("/download", (request, response) => {
-    const id = request.query.id as string;
-    const quality = request.query.quality as string || "highest";
-    if (quality !== "lowest" && quality !== "highest") {
-        response.sendStatus(400);
-        return;
-    }
-    download(id, "videoandaudio", quality).pipe(response);
+    downloadCommon("videoandaudio", request, response);
 });
 
 router.get("/download/video", (request, response) => {
-    const id = request.query.id as string;
-    const quality = request.query.quality as string || "highest";
-    if (quality !== "lowest" && quality !== "highest") {
-        response.sendStatus(400);
-        return;
-    }
-    download(id, "videoonly", quality).pipe(response);
+    downloadCommon("videoonly", request, response);
 });
 
 router.get("/download/audio", (request, response) => {
-    const id = request.query.id as string;
-    const quality = request.query.quality as string || "highest";
-    if (quality !== "lowest" && quality !== "highest") {
-        response.sendStatus(400);
-        return;
-    }
-    download(id, "audioonly", quality).pipe(response);
-})
+    downloadCommon("audioonly", request, response)
+});
 
 router.get("/extract-id", (request, response) => {
     const url = request.query.url as string;
@@ -204,6 +186,23 @@ export function download(id: string, filter: Filter, quality: "highest" | "lowes
     const url = `https://www.youtube.com/watch?v=${id}`;
     const actualQuality = selectQuality(filter, quality);
     return ytdl(url, { quality: actualQuality, filter: filter, dlChunkSize: 0 });
+}
+
+function downloadCommon(filter: Filter, request: Request, response: Response) {
+    const id = request.query.id;
+    const quality = request.query.quality as string || "highest";
+    if (typeof id !== "string" || (quality !== "highest" && quality !== "lowest")) {
+        response.sendStatus(400);
+        return;
+    }
+    download(id, filter, quality)
+        .on("error", (error) => {
+            if (error.message === "Video unavailable") {
+                response.sendStatus(404);
+                return;
+            }
+        })
+        .pipe(response);
 }
 
 function selectQuality(filter: Filter, quality: string): string {
